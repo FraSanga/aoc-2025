@@ -4,13 +4,12 @@ defmodule IDsChecker do
     low_len = String.length(low_str)
     high_len = String.length(high_str)
 
-    equal_start = if low_len == high_len, do: find_equal_start(low_str, high_str, ""), else: ""
+    if low_len == high_len, do: find_equal_start(low_str, high_str, ""), else: ""
     |> generate_invalid_ids(low_str, high_str, low_len, high_len)
     |> Enum.sum()
   end
 
   # Find initial digits that cannot change
-
   defp find_equal_start(<<head, low_rest::binary>>, <<head, high_rest::binary>>, acc) do
     find_equal_start(low_rest, high_rest, acc <> <<head>>)
   end
@@ -31,13 +30,13 @@ defmodule IDsChecker do
   # Jump to the nearest lower bound with an even length
   defp generate_invalid_ids("", low_str, high_str, low_len, high_len) when rem(low_len,2) == 1 do
     new_low_str = Integer.to_string(10**low_len)
-    equal_start = if low_len + 1 == high_len, do: find_equal_start(new_low_str, high_str, ""), else: ""
+    if low_len + 1 == high_len, do: find_equal_start(new_low_str, high_str, ""), else: ""
     |> generate_invalid_ids(new_low_str, high_str, low_len + 1, high_len)
   end
   # Jump to the nearest upper bound with an even length
   defp generate_invalid_ids("", low_str, high_str, low_len, high_len) when rem(high_len,2) == 1 do
     new_high_str = Integer.to_string((10**(high_len-1))-1)
-    equal_start = if low_len + 1 == high_len, do: find_equal_start(low_str, new_high_str, ""), else: ""
+    if low_len + 1 == high_len, do: find_equal_start(low_str, new_high_str, ""), else: ""
     |> generate_invalid_ids(low_str, new_high_str, low_len, high_len - 1)
   end
 
@@ -46,7 +45,7 @@ defmodule IDsChecker do
     prefix_len = String.length(prefix_str) 
     prefix = String.to_integer(prefix_str)
     generate_invalid_ids("", String.slice(low_str, prefix_len..-1), String.slice(high_str, prefix_len..-1), len-prefix_len, len-prefix_len) 
-    |> Enum.map(fn n -> n + (prefix * (10**(len-prefix_len)) end)
+    |> Enum.map(fn n -> n + (prefix * (10**(len-prefix_len))) end)
   end
 end
 
