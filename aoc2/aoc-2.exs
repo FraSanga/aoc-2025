@@ -42,8 +42,11 @@ defmodule IDsChecker do
   end
 
   # Generate all possible ids with a fixed prefix
-  defp generate_invalid_ids(prefix, low_str, high_str, low_len, high_len) do
-    # WIP
+  defp generate_invalid_ids(prefix_str, low_str, high_str, len, len) do 
+    prefix_len = String.length(prefix_str) 
+    prefix = String.to_integer(prefix_str)
+    generate_invalid_ids("", String.slice(low_str, prefix_len..-1), String.slice(high_str, prefix_len..-1), len-prefix_len, len-prefix_len) 
+    |> Enum.map(fn n -> n + (prefix * (10**(len-prefix_len)) end)
   end
 end
 
