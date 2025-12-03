@@ -3,13 +3,13 @@ defmodule IDsChecker do
     [low_str, high_str] = String.split(range, "-", parts: 2)
     low_len = String.length(low_str)
     high_len = String.length(high_str)
-    generate_subranges(low_str, high_str, low_len, high_len, []) |> dbg()
+    generate_subranges(low_str, high_str, low_len, high_len, [])
     |> Enum.reduce(
       0,
       fn {new_low_str, new_high_str, new_len}, acc ->
         check_subrange(new_low_str, new_high_str, new_len)
         |> Enum.sum()
-        |> then(& acc + &1) |> dbg()
+        |> then(& acc + &1)
       end
     )
   end
@@ -21,113 +21,67 @@ defmodule IDsChecker do
     generate_subranges(new_low_str, high_str, low_len + 1, high_len, [{low_str, new_high_str, low_len} | acc])
   end
 
-  defp generate_prime_divisors(1), do: []
-  defp generate_prime_divisors(2), do: [1]
-  defp generate_prime_divisors(len) when rem(len,2)==0 do
-    for i <- Prime.take(2, div(len,2)),
-        rem(len,i) == 0,
-        reduce: [] do
-      acc -> [i | acc]
-    end
-  end
-  defp generate_prime_divisors(len) do
-    for i <- Prime.take(1, div(len,2)),
-        rem(len,i) == 0,
-        reduce: [] do
-      acc -> [i | acc]
-    end
-  end
-
-  # Find initial digits that cannot change
-  defp find_equal_start(<<head, low_rest::binary>>, <<head, high_rest::binary>>, acc) do
-    find_equal_start(low_rest, high_rest, acc <> <<head>>)
-  end
-  defp find_equal_start(_, _, acc), do: acc
-
-  defp check_subrange(low_str, high_str, 1), do: []
+  defp check_subrange(_, _, 1), do: []
   defp check_subrange(low_str, high_str, len) do
-    divisors = generate_prime_divisors(len)
-    prefix = find_equal_start(low_str, high_str, "") |> dbg()
+    divisors = divisors(len)
     Enum.flat_map(
       divisors,
       fn divisor ->
-        generate_invalid_ids(prefix, low_str, high_str, len, divisor)
+        generate_invalid_ids(low_str, high_str, len, divisor)
       end
     ) |> Enum.uniq()
   end
 
-  defp do_generate_invalid_ids("", start_str, high_str, len, divisor) do
-    [start_str, high_str, len, divisor] |> dbg()
-    high = String.to_integer(high_str)
-    # TO-DO: fix generate_invalid_ids
-    []
-  end
+  defp divisors(1), do: []
+  defp divisors(n), do: [1 | divisors(2,n,:math.sqrt(n))] |> Enum.sort
+  defp divisors(k,_n,q) when k>q, do: []
+  defp divisors(k,n,q) when rem(n,k)>0, do: divisors(k+1,n,q)
+  defp divisors(k,n,q) when k * k == n, do: [k | divisors(k+1,n,q)]
+  defp divisors(k,n,q)                , do: [k,div(n,k) | divisors(k+1,n,q)]
 
-  # TO-DO: fix
-  # skip first isn't work as aspected (too large skip)
-  defp generate_invalid_ids("", low_str, high_str, len, divisor) when low_str < high_str do
-    first = String.first(low_str)
-    skip_first = for i <- 1..(div(len,divisor)-1)//1,
-        n = String.at(low_str,divisor*i),
-        reduce: [] do
-      acc -> [n | acc]
-    end |> Enum.any?(fn n -> n > first end) |> dbg()
+  defp generate_invalid_ids(low_str, high_str, len, divisor) do
+    to_repeat = div(len,divisor)
+    prefix = String.slice(low_str, 0..divisor-1)
 
-    if skip_first do
-      cond do
-        first == "9" -> []
-        true ->
-          new_low_str = Integer.to_string((String.to_integer(first) + 1)) <> String.duplicate("0", divisor-1)
-          |> String.duplicate(div(len,divisor))
-          generate_invalid_ids("", new_low_str, high_str, len, divisor)
-      end
+    {valid, bound} = prefix
+    |> String.duplicate(to_repeat)
+    |> validate_lower_bound(low_str)
+
+    if valid do
+      do_generate_invalid_ids(bound, high_str, len, divisor, [])
     else
-      rest_len = divisor-1
-      rest = String.slice(low_str,1..(rest_len)//1)
-      skip_rest = for i <- 1..(div(len,divisor)-1)//1,
-          n = String.slice(low_str,((divisor*i)+1)..((divisor*i)+rest_len)//1),
-          reduce: [] do
-        acc -> [n | acc]
-      end |> Enum.any?(fn n -> n > rest end) |> dbg()
-
-      if skip_rest do
-        cond do
-          rest == "" ->
-            new_low_str = String.duplicate(first, len)
-            do_generate_invalid_ids("", new_low_str, high_str, len, divisor)
-          rest == String.duplicate("9", rest_len) ->
-            new_low_str = Integer.to_string((String.to_integer(first) + 1)) <> String.duplicate("0", divisor-1)
-            |> String.duplicate(div(len,divisor))
-            do_generate_invalid_ids("", new_low_str, high_str, len, divisor)
-          true ->
-            new_low_str = first <> String.pad_leading(Integer.to_string((String.to_integer(rest) + 1)), divisor-1, "0")
-            |> String.duplicate(div(len,divisor))
-            do_generate_invalid_ids("", new_low_str, high_str, len, divisor)
-        end
-      else
-        new_low_str = String.duplicate(first <> rest, div(len,divisor))
-        do_generate_invalid_ids("", new_low_str, high_str, len, divisor)
+      id_str = next_id(prefix, to_repeat)
+      cond do
+        String.length(id_str) > len -> []
+        String.to_integer(id_str) > String.to_integer(high_str) -> []
+        true -> generate_invalid_ids(id_str, high_str, len, divisor)
       end
     end
-
   end
 
-  # TO-DO: implement logic with prefix
-  defp generate_invalid_ids(prefix, low_str, high_str, len, divisor) do
-    []
+  defp validate_lower_bound(bound, low_str), do: {bound >= low_str, bound}
+  defp next_id(prefix, to_repeat) do
+    String.to_integer(prefix)
+    |> then(& &1+1)
+    |> Integer.to_string()
+    |> String.duplicate(to_repeat)
   end
 
+  defp do_generate_invalid_ids(id_str, high_str, len, divisor, acc) do
+    to_repeat = div(len,divisor)
+    prefix = String.slice(id_str, 0..divisor-1)
+    new_id_str = next_id(prefix, to_repeat)
+    high = String.to_integer(high_str)
+
+    cond do
+      String.length(id_str) > len -> acc
+      String.to_integer(id_str) > high -> acc
+      String.length(new_id_str) > len -> [String.to_integer(id_str) | acc]
+      String.to_integer(new_id_str) > high -> [String.to_integer(id_str) | acc]
+      true -> do_generate_invalid_ids(new_id_str, high_str, len, divisor, [String.to_integer(id_str) | acc])
+    end
+  end
 end
-
-defmodule Prime do
-  def take(from, to) when from < 1 or to < 1, do: raise ArgumentError
-  def take(from, to), do: from |> Stream.iterate(&(&1+1)) |> Stream.filter(&prime?/1) |> Enum.take_while(&(&1 <= to))
-  defp prime?(n) when n in [1,2,3], do: true
-  defp prime?(n), do: Enum.all?(2..floor(n**1/2),&(rem(n,&1)!=0))
-end
-
-
-
 
 file = "aoc-2-input.txt"
 File.stream!(file)
@@ -135,4 +89,4 @@ File.stream!(file)
 |> Enum.to_list()
 |> List.first()
 |> Enum.reduce(0, fn range, acc -> IDsChecker.check_range(range) + acc end)
-#|> then(fn code ->IO.puts("#{code}") end)
+|> then(fn code ->IO.puts("#{code}") end)
