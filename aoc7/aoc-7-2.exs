@@ -1,28 +1,17 @@
 defmodule Beam do
-  def enters([[beam] | lines]),
-    do: timelines(lines, beam, Map.new(), 1)
+  def enters([[beam] | rows]), do: timelines(rows, %{beam => 1})
 
-  defp timelines([], beam, cache, index), do: {1, Map.put(cache, "#{index}/#{beam}", 1)}
-  defp timelines([line | lines], beam, cache, index) do
-    if beam not in line do
-      case Map.get(cache, "#{index+1}/#{beam}", nil) do
-        nil -> timelines(lines, beam, cache, index+1)
-        val -> {val, cache}
-      end
-    else
-      {l, _} = case Map.get(cache, "#{index+1}/#{beam-1}", nil) do
-        nil -> timelines(lines, beam-1, cache, index+1)
-        val -> {val, cache}
-      end
-
-      {r, _} = case Map.get(cache, "#{index+1}/#{beam+1}", nil) do
-        nil -> timelines(lines, beam+1, cache, index+1)
-        val -> {val, cache}
-      end
-
-      {l+r, Map.put(cache, "#{index}/#{beam}", l+r)}
+  defp timelines([], beams), do: Map.values(beams) |> Enum.sum()
+  defp timelines([splitters | rest], b) do
+    new_beams = for splitter <- splitters,
+        beam = Map.get(b, splitter),
+        beam != nil,
+        reduce: b do
+      beams -> Map.delete(beams, splitter)
+              |> Map.update(splitter-1, beam, fn old -> old + beam end)
+              |> Map.update(splitter+1, beam, fn old -> old + beam end)
     end
-
+    timelines(rest, new_beams)
   end
 end
 
@@ -36,4 +25,4 @@ end ))
 |> Stream.filter(fn x -> x != [] end)
 |> Enum.to_list()
 |> then(fn rows -> Beam.enters(rows) end)
-|> then(fn {code, _ } -> IO.puts("#{code}") end)
+|> then(fn code -> IO.puts("#{code}") end)
